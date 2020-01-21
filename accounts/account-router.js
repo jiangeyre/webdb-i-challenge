@@ -1,90 +1,107 @@
 const express = require('express');
-const knex = require('../data/dbConfig');
+//db is the way of using knex code to *talk* to the Data Base.
+const db = require('../data/dbConfig');
 
 const router = express.Router();
 
-// CRUD Methods
+router.get('/', (req,res) => {
+    // res.send('hit the get GET /api/posts');
+    db.select('*').from('accounts')
+        .then(rows => {
+            res.status(200).json(rows);
+        })
+        .catch(error => {
+            console.log(error);
+            res.status(500).json({error: `error getting all accounts!`})
+        });
+})
 
-// GET
-
-// get all the accounts
-router.get('/', (req, res) => {
-    knex('accounts') // same thing as db.select('*').from('accounts')
-    // as per usual, promise stuff
-    .then(accounts => {
-        res.status(200).json(accounts);
+router.get('/:id', (req,res) => {
+    const { id } = req.params;
+    db.select('*').from('accounts').where('id', '=', id)
+    //can say: first()
+    //if want to get the first item in the array only --> i.e. will only 
+    //get "row" vv
+    .then(rows => {
+        res.status(200).json(rows[0]);
     })
-    .catch(err => res.status(500).json({ error: err })); 
-});
-
-// get by id
-router.get('/:id', validateAccountId, (req, res) => {
-    const id = req.params.id;
-    knex('accounts')
-    .where({ id: id })
-    .then(account => {
-        res.status(200).json(account);
-    })
-    .catch(err => res.status(500).json({ error: err }));
-});
-
-// POST
-router.post('/', validateAccount, (req, res) => {
-    const account = req.body;
-    knex('accounts')
-    .insert(account)
-    .then(response => {
-        res.status(201).json(`Post created with id ${response}.`);
-    })
-    .catch(err => res.status(500).json({ error: err }));
-});
-
-// DELETE
-router.delete('/:id', validateAccountId, (req, res) => {
-    const id = req.params.id;
-    knex('accounts')
-    .where({ id: id })
-    .del()
-    .then(count => {
-        res.status(200).json(`${count} record deleted.`);
-    })
-    .catch(err => res.status(500).json({ error: err }));
-});
-
-// UPDATE
-router.put('/:id', validateAccountId, validateAccount, (req, res) => {
-    const id = req.params.id;
-    const update = req.body;
-    knex('accounts')
-    .where({ id: id })
-    .update(update)
-    .then(count => {
-        res.status(200).json(`${count} record updated.`);
-    })
-    .catch(err => res.status(500).json({ error: err }));
-});
+    .catch(error => {
+        console.log(error);
+        res.status(500).json({error: `error getting all accounts!`})
+    });
+})
 
 
-// MIDDLEWARE
+router.post('/', validateAcctPost, (req,res) => {
+    const newAcct = req.body;
 
-function validateAccountId(req, res, next) {
-    const id = req.params.id;
-    knex('accounts')
-    .where({ id: id })
-    .then(account => {
-        !account.length && res.status(404).json({ error: "Account with provided id not found." });
-        next();
-    })
-    .catch(err => res.status(500).json({ error: err }));
-};
+    db('accounts').insert(newAcct, 'id')
+        .then(newAcctID => {
+            res.status(201).json(newAcctID)
+        })
+        .catch(error => {
+            console.log(error);
+            res.status(500).json({error: `error adding new account!`})
+        });
 
-function validateAccount(req, res, next) {
-    const account = req.body;
-    !account && res.status(400).json({ error: "Please provide an account." });
-    !account.name && res.status(400).json({ error: "Please provide an account name." });
-    !account.budget && res.status(400).json({ error: "Please provide an account budget." });
+})
+
+router.delete('/:id', (req,res) => {
+    const { id } = req.params;
+    db.select('*').from('accounts').where({id}).delete(id)
+        .then(deletedReccords => {
+            res.status(204).json(deletedReccords)
+        })
+        .catch(error => {
+            console.log(error);
+            res.status(500).json({error: `error deleting the account!`})
+        });
+})
+
+router.put('/:id', (req,res) => {
+    const { id } = req.params;
+    changes = req.body;
+    db('accounts').where({id}).update(changes)
+        .then(updatedA => {
+            res.status(200).json(updatedA)
+        })
+        .catch(error => {
+            console.log(error);
+            res.status(500).json({error: `error adding new account!`})
+        });
+})
+
+
+
+//custom middleware:
+function validateAcctPost(req,res,next) {
+    // const { id } = req.body;
+    const { name } = req.body;
+    const { budget } = req.body;
+
+
+    if(!req.body) {
+        return res.status(400).json({error: `must provide a body to create a new acct!`});
+    }
+
+    if(!name){
+        return res.status(400).json({error: `must provide a NAME for a new acct!`});
+    }
+
+    if(!budget){
+        return res.status(400).json({error: `must provide a BUDGET for a new acct!`});
+    }
+
+    if(typeof name !== "string"){
+        return res.status(400).json({error: `must provide string for name`});
+    }
+    if(typeof budget !== "number"){
+        return res.status(400).json({error: `must provide NUM for budget`});
+    }
+    req.body = {name, budget}
     next();
-};
 
-// export router
-module.exports = router;
+}
+
+
+module.exports = router; 
