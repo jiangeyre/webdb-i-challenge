@@ -1,14 +1,12 @@
 const express = require('express');
 
-const accountRouter = require('./accounts/account-router');
-
-const db = require('./data/dbConfig.js');
-
 const server = express();
+
+const accountRouter = require('./accounts/account-router.js');
 
 server.use(express.json());
 
-server.use('/api/accounts', accountRouter) 
+server.use('/api/accounts', accountRouter);
 // import the router into server.
 
 server.get('/', (req, res) => {

@@ -1,57 +1,90 @@
-const router = require('express').Router();
-const db = require('../data/dbConfig');
+const express = require('express');
+const knex = require('../data/dbConfig');
 
-router.get('/api', (req, res) => {
-    const { limit, sortby, sortdir } = req.query;
+const router = express.Router();
 
-    db('accounts')
-    .orderBy(sortby, sortdir)
-    .limit(limit)
-    .then(accounts => res.status(200).json(accounts))
-    .catch(err => res.status(500).json({ message: 'Failed to get accounts' }))
+// CRUD Methods
+
+// GET
+
+// get all the accounts
+router.get('/', (req, res) => {
+    knex('accounts') // same thing as db.select('*').from('accounts')
+    // as per usual, promise stuff
+    .then(accounts => {
+        res.status(200).json(accounts);
+    })
+    .catch(err => res.status(500).json({ error: err })); 
 });
 
-router.get('/api/:id', (req, res) => {
-    db('accounts')
-        .where({ id: req.params.id })
-        .first()
-        .then(accounts => res.status(200).json(accounts))
-        .catch(err => res.status(500).json({ message: 'Failed to get account' }))
+// get by id
+router.get('/:id', validateAccountId, (req, res) => {
+    const id = req.params.id;
+    knex('accounts')
+    .where({ id: id })
+    .then(account => {
+        res.status(200).json(account);
+    })
+    .catch(err => res.status(500).json({ error: err }));
 });
 
-router.post('/api', (req, res) => {
-    const acctData = req.body;
-
-    (!acctData.name || !acctData.budget) ? res.status(400).json({ errorMessage: "Please provide name and budget for the account." }) :
-    db('accounts')
-        .insert(acctData, 'id')
-        .then(([id]) => {
-            db('accounts')
-                .where({ id })
-                .first()
-                .then(act => {
-                    res.status(200).json(act);
-                });
-        })
-        .catch(err => res.status(500).json({ message: 'Error adding account' }))
+// POST
+router.post('/', validateAccount, (req, res) => {
+    const account = req.body;
+    knex('accounts')
+    .insert(account)
+    .then(response => {
+        res.status(201).json(`Post created with id ${response}.`);
+    })
+    .catch(err => res.status(500).json({ error: err }));
 });
 
-router.put('/api/:id', (req, res) => { 
-    const accountChanges = req.body;
-
-    db('accounts')
-        .where('id', req.params.id)
-        .update(accountChanges)
-        .then(res => res.status(200).json({ message: 'Account updated' }))
-        .catch(err => res.status(500).json({ message: 'Error adding account' }))
+// DELETE
+router.delete('/:id', validateAccountId, (req, res) => {
+    const id = req.params.id;
+    knex('accounts')
+    .where({ id: id })
+    .del()
+    .then(count => {
+        res.status(200).json(`${count} record deleted.`);
+    })
+    .catch(err => res.status(500).json({ error: err }));
 });
 
-router.delete('/api/:id', (req, res) => {
-        db('accounts')
-        .where({ id: req.params.id })
-        .del()
-        .then(count => res.status(200).json({ message: `Deleted records: ${count}` }))
-        .catch(err => res.status(500).json({ message: 'Failed to get account' }))
+// UPDATE
+router.put('/:id', validateAccountId, validateAccount, (req, res) => {
+    const id = req.params.id;
+    const update = req.body;
+    knex('accounts')
+    .where({ id: id })
+    .update(update)
+    .then(count => {
+        res.status(200).json(`${count} record updated.`);
+    })
+    .catch(err => res.status(500).json({ error: err }));
 });
 
+
+// MIDDLEWARE
+
+function validateAccountId(req, res, next) {
+    const id = req.params.id;
+    knex('accounts')
+    .where({ id: id })
+    .then(account => {
+        !account.length && res.status(404).json({ error: "Account with provided id not found." });
+        next();
+    })
+    .catch(err => res.status(500).json({ error: err }));
+};
+
+function validateAccount(req, res, next) {
+    const account = req.body;
+    !account && res.status(400).json({ error: "Please provide an account." });
+    !account.name && res.status(400).json({ error: "Please provide an account name." });
+    !account.budget && res.status(400).json({ error: "Please provide an account budget." });
+    next();
+};
+
+// export router
 module.exports = router;
